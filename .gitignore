@@ -52,3 +52,5 @@ fitTrain.csv
 *.rdb
 MachineLearning_cache/html/__packages
 .Rproj.user
+.Rhistory
+.Rhistory
