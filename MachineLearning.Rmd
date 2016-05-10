@@ -26,6 +26,9 @@ library(caret)
 # set.seed(62433)
 ```
 
+#Preprocessing
+
+## Download files
 ```{r, cache=T}
 download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "fitTrain.csv")
 training = read.csv("fitTrain.csv")
@@ -34,54 +37,56 @@ download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.c
 testing = read.csv("fitTest.csv")
 ```
 
-```{r explore}
-training %>%
-    ggplot(aes(.[,5], classe, col = user_name)) +
-    geom_point() +
-    geom_point(data = testing, aes(.[,5], "A", col = user_name), shape = 2)
+## Split Data for Cross Validation
+To test our modelfits we split up (70:30) our training set to apply cross-validation.
+```{r}
+inTrain <- createDataPartition(y = training$classe, p = 0.7, list = F)
+trainingTrain <- training[inTrain,]
+trainingTest <- training[-inTrain,]
 ```
 
 
+## Cleanup data
+Some columns provided have to be removed. For example the name of the testpersons as well the the time can't be used to predict for a random person at a random time. Furthermore some columns might contain at least 80% NA. These data isn't reliable and therefore is removed.
 ```{r cleanup}
+trainNoTime <- trainingTrain[,-c(1:7)] #remove inapprpriate columns
 
-trainNoTime <- training[,-c(1:7)]
-# trainNoTime <- training[,-c(1, 2, 3)]
-
-na80 <- apply(trainNoTime, 2, function(i){mean(is.na(i)) > 0.8}) %>% as.vector()
-
+na80 <- apply(trainNoTime, 2, function(i){mean(is.na(i)) > 0.8}) %>% as.vector() #find + remove > 80% NA
 trainNA <- trainNoTime[, !na80]
-
-# nsv <- nearZeroVar(trainNA)
-# trainClean <- trainNA[,-nsv]
 ```
 
-
+Further preprocessing is done automatically by *preProcess*. First remove columns with variance close to zero (*nzv*), then apply *center*, *scale* and *pca*.
 ```{r preProcess}
-(preProc <- preProcess(trainNoTime[,-ncol(trainNoTime)], method = c("center", "scale", "nzv", "pca"), thresh = 0.90))
-
-trainPC <- predict(preProc, trainNoTime)
-# testPC <- predict(preProc, testing)
-
-(trainFirst <- train(classe ~., data = trainPC, method = "lda"))
+(preProc <- preProcess(trainNA[,-ncol(trainNA)], method = c("center", "scale", "nzv", "pca"), thresh = 0.90))
 ```
 
+Apply preprossing to training set. Use only new features from preprocessing!
+```{r trainTraining}
+trainPC <- predict(preProc, trainNA)[,34:(34+preProc$numComp)]
+```
+
+## Modelfits
+After training the models we apply them to  the remaining data from the trainig data to get an idea of the accuracy.
+
+### Random Forest
+The first attempt is *random forest*. 
 ```{r rf, cache=T}
 (modelfit1 <-train(classe ~., data = trainPC, method = "rf"))
-pred1 <- predict(modelfit1, newdata = trainPC)
-confusionMatrix(pred1, trainPC$classe)
+pred1 <- predict(modelfit1, predict(preProc, trainingTest))
+confusionMatrix(pred1, trainingTest$classe)
 ```
 
 ```{r gbm, cache=T}
 (modelfit2 <- train(classe ~., data = trainPC, method = "gbm", verbose = F))
-pred2 <- predict(modelfit2, trainPC)
-confusionMatrix(pred2, trainPC$classe)
+pred2 <- predict(modelfit2, predict(preProc, trainingTest))
+confusionMatrix(pred2, trainingTest$classe)
 ```
 
 
 ```{r lda, cache=T}
 (modelfit3 <- train(classe ~., data = trainPC, method = "lda"))
-pred3 <- predict(modelfit3, trainPC)
-confusionMatrix(pred3, trainPC$classe)
+pred3 <- predict(modelfit3, predict(preProc, trainingTest))
+confusionMatrix(pred3, trainingTest$classe)
 ```
 
 ```{r}
@@ -94,23 +99,5 @@ training %>%
 
 
 ```{r}
-predict(modelfit2, predict(preProc, testing))
-
-pred4 <- predict(modelfit3, newdata = testClean)
-
-training %>%
-    ggplot(aes(.[,5], classe, col = user_name)) +
-    geom_point() +
-    geom_point(data = training, aes(training[,5], pred, col = user_name), shape = 2, size = 5)
+predict(modelfit1, predict(preProc, testing))
 ```
-
-
-```{r}
-predDF <- data.frame(pred2, pred3, classe = training$classe)
-(modelfit <-train(classe ~., data = predDF, method = "rf"))
-pred <- predict(modelfit, newdata = training)
-confusionMatrix(pred, training$classe)
-
-predict(modelfit, predict(preProc, testing))
-```
-

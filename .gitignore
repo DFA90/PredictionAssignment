@@ -45,3 +45,9 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+*.csv
+fitTrain.csv
+*.rdx
+*.RData
+*.rdb
+MachineLearning_cache/html/__packages
