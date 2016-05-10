@@ -4,7 +4,7 @@ author: "DAF"
 date: '`r Sys.Date()`'
 output:
   html_document:
-    code_folding: hide
+    code_folding: show
     number_sections: yes
     toc: yes
     toc_float:
@@ -17,12 +17,13 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+```{r libs, message=FALSE}
 library(plyr)
 library(dplyr)
-library(ggplot2)
 library(caret)
-
+library(randomForest)
+library(gbm)
+library(MASS)
 # set.seed(62433)
 ```
 
@@ -38,9 +39,9 @@ testing = read.csv("fitTest.csv")
 ```
 
 ## Split Data for Cross Validation
-To test our modelfits we split up (70:30) our training set to apply cross-validation.
+To test our modelfits we split up (80:10) our training set to apply cross-validation.
 ```{r}
-inTrain <- createDataPartition(y = training$classe, p = 0.7, list = F)
+inTrain <- createDataPartition(y = training$classe, p = 0.8, list = F)
 trainingTrain <- training[inTrain,]
 trainingTest <- training[-inTrain,]
 ```
@@ -65,39 +66,38 @@ Apply preprossing to training set. Use only new features from preprocessing!
 trainPC <- predict(preProc, trainNA)[,34:(34+preProc$numComp)]
 ```
 
-## Modelfits
+# Modelfits
 After training the models we apply them to  the remaining data from the trainig data to get an idea of the accuracy.
 
-### Random Forest
-The first attempt is *random forest*. 
+## Random Forest
 ```{r rf, cache=T}
+
 (modelfit1 <-train(classe ~., data = trainPC, method = "rf"))
 pred1 <- predict(modelfit1, predict(preProc, trainingTest))
 confusionMatrix(pred1, trainingTest$classe)
 ```
 
+## Generalized Boosted Regression Modeling
 ```{r gbm, cache=T}
+
 (modelfit2 <- train(classe ~., data = trainPC, method = "gbm", verbose = F))
 pred2 <- predict(modelfit2, predict(preProc, trainingTest))
 confusionMatrix(pred2, trainingTest$classe)
 ```
 
-
+## Linear Discriminant Analysis
 ```{r lda, cache=T}
+
 (modelfit3 <- train(classe ~., data = trainPC, method = "lda"))
 pred3 <- predict(modelfit3, predict(preProc, trainingTest))
 confusionMatrix(pred3, trainingTest$classe)
 ```
 
-```{r}
-training %>%
-    ggplot(aes(1:nrow(.), classe)) +
-    geom_point(col = "red") +
-    geom_point(aes(1:nrow(.), pred2), shape = 2, size = 3) +
-    facet_wrap(~user_name, scale = "free")
-```
+## Conclusion
+We choose the **random forest model** because the accuracy of it is that good that we don't expect a better result from combining all three models together.
 
-
+# Predict test data
+Aplly preprocessing and the random forest model to the *testing* dataset.
 ```{r}
 predict(modelfit1, predict(preProc, testing))
 ```
